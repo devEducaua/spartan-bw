@@ -3,7 +3,7 @@
 build:
 ```console
 $ go build
-`
+```
 
 usage:
 ```console
