@@ -18,20 +18,19 @@ func main() {
 
     spartanUrl := argv[0];
     host, port, path := parseUrl(spartanUrl);
+    res := request(host, path, port);
 
+    parseResult(host, res);
+}
+
+func request(host string, path string, port string) string {
+    
     conn, err := net.Dial("tcp", net.JoinHostPort(host, port));
     if err != nil {
         panic(err);
     }
 
     defer conn.Close();
-
-    res := request(conn, host, path);
-
-    parseResult(conn, host, res);
-}
-
-func request(conn net.Conn, host string, path string) strings.Builder {
 
     request := fmt.Sprintf("%v %v %v\n", host, path, 0);
     conn.Write([]byte(request));
@@ -49,7 +48,7 @@ func request(conn net.Conn, host string, path string) strings.Builder {
         }
     }
 
-    return res;
+    return res.String();
 }
 
 func parseUrl(spartanUrl string) (string, string, string) {
@@ -57,7 +56,7 @@ func parseUrl(spartanUrl string) (string, string, string) {
         spartanUrl = "spartan://" + spartanUrl;
     }
 
-    u, err := url.Parse(spartanUrl);
+    u, err := url.Parse(strings.TrimSpace(spartanUrl));
     if err != nil {
         panic(err);
     }
@@ -74,44 +73,40 @@ func parseUrl(spartanUrl string) (string, string, string) {
     }
 
     if strings.HasSuffix(path, ".gmi/") {
-		path = path[:len(path)-1]
+        path = path[:len(path)-1]
     }
 
     return host, port, path;
 }
 
-func parseResult(conn net.Conn, host string, result strings.Builder) {
-    content := result.String();
-
-    lines := strings.Split(content, "\n");
-
-    if content == "" {
-        fmt.Println("TODO: for whatever reason has no response");
+func parseResult(host string, result string) {
+    if result == "" {
+        fmt.Println("no response");
         return
     }
 
+    lines := strings.Split(result, "\n");
     head := lines[0];
-    statusCode := string(head[0]);
 
-    switch statusCode {
+    parts := strings.SplitN(head, " ", 2);
+    code := parts[0];
+
+    meta := "";
+    if len(parts) > 1 {
+        meta = parts[1];
+    }
+
+    switch code {
     case "2": 
-        fmt.Println(content);
-        fmt.Println("2 success request");
+		body := strings.Join(lines[1:], "\n");
+		fmt.Println(body);
     case "3":
-        redirectPath := head[2:];
-		fmt.Println(redirectPath);
-		fmt.Println(host);
-
-		result := request(conn, host, redirectPath);
-
-		fmt.Println(result)
-
-		parseResult(conn, host, result)
+        host, port, path := parseUrl(host+meta);
+        req := request(host, path, port);
+        parseResult(host, req);
     case "4": 
-        error := head[2:];
-        fmt.Println("server returned status 4, client-error: ", error);
+        fmt.Println("server returned status 4, client-error: ", meta);
     case "5": 
-        error := head[2:];
-        fmt.Println("server returned status 5, server-error: ", error);
+        fmt.Println("server returned status 5, server-error: ", meta);
     }
 }
